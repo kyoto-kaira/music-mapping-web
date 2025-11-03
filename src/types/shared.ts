@@ -78,3 +78,4 @@ export interface MapState {
   songs: Song[];
   hasCoordinates: boolean;
 }
+

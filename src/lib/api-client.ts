@@ -1,4 +1,4 @@
-import { ApiResponse, CreateMapResponse, DeleteSongResponse, SearchResult, Song } from '../../shared/types';
+import { ApiResponse, CreateMapResponse, DeleteSongResponse, SearchResult, Song } from '../types/shared';
 
 // プロキシAPIエンドポイント（APIキーはサーバーサイドで管理）
 const PROXY_API_URL = '/api/inference';
@@ -285,3 +285,4 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+

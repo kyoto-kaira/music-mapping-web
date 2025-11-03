@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { apiClient } from '../api/client';
+import { apiClient } from '../lib/api-client';
 import { CONSTANTS } from '../constants';
 import { MapAxes, SearchResult, Song, SongPosition } from '../types';
 

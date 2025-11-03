@@ -31,3 +31,10 @@ dist-ssr
 
 # Build outputs
 build/
+
+# TypeScript build artifacts
+*.js.map
+*.d.ts.map
+shared/*.js
+shared/*.d.ts
+shared/*.map

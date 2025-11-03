@@ -3,7 +3,7 @@ export type {
     AddSongRequest, ApiResponse,
     CreateMapRequest, CreateMapResponse, DeleteSongResponse, MapAxes,
     SearchResult, Song, SongPosition
-} from '../../shared/types';
+} from './shared';
 
 // コンポーネントのプロパティ型定義
 export interface ScatterPlotProps {

@@ -54,7 +54,7 @@ function handleApiError<T>(error: unknown, defaultMessage: string, code = 'API_E
  * マップIDを生成
  */
 function generateMapId(): string {
-  return `map_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `map_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }
 
 /**

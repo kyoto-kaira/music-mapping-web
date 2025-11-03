@@ -77,7 +77,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           } else {
             // カウント取得の場合
             if (params.count) {
-              const { count, error } = await query.select('*', { count: 'exact', head: true });
+              // カウント取得の場合は新しいクエリを作成
+              let countQuery = supabase.from(table).select('*', { count: 'exact', head: true } as any);
+              // フィルターを適用
+              if (filters.eq) {
+                for (const [key, value] of Object.entries(filters.eq)) {
+                  countQuery = countQuery.eq(key, value);
+                }
+              }
+              const { count, error } = await countQuery;
               if (error) throw error;
               result = { count: count || 0 };
             } else {
@@ -99,15 +107,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
           }
 
-          let query = supabase.from(table).insert(values);
-
           if (params.select) {
-            query = query.select(params.select);
-            const { data, error } = await query;
+            const { data, error } = await supabase
+              .from(table)
+              .insert(values)
+              .select(params.select);
             if (error) throw error;
             result = { data: params.single ? data?.[0] : data };
           } else {
-            const { error } = await query;
+            const { error } = await supabase.from(table).insert(values);
             if (error) throw error;
             result = { success: true };
           }

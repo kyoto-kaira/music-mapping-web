@@ -1,9 +1,10 @@
 import react from '@vitejs/plugin-react-swc';
 import path from 'path';
 import { defineConfig } from 'vite';
+import { apiProxyPlugin } from './vite-plugin-api-proxy';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), apiProxyPlugin()],
   resolve: {
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
     alias: {

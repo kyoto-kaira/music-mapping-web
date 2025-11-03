@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabaseApi } from '../lib/supabase-api';
 import { MapAxes, Song } from '../types';
 
 export interface MapData {
@@ -17,20 +17,31 @@ export interface MapWithSongs extends MapData {
 // マップ一覧を取得
 export async function getAllMaps(): Promise<MapData[]> {
   try {
-    const { data, error } = await supabase
-      .from('maps')
-      .select('id, name, x_axis, y_axis, created_at, updated_at')
-      .order('updated_at', { ascending: false });
+    const result = await supabaseApi.select<{
+      id: string;
+      name: string;
+      x_axis: string;
+      y_axis: string;
+      created_at: string;
+      updated_at: string;
+    }>({
+      table: 'maps',
+      columns: 'id, name, x_axis, y_axis, created_at, updated_at',
+      orderBy: { column: 'updated_at', ascending: false },
+    });
 
-    if (error) throw error;
+    if (!result?.data) return [];
+
+    const data = Array.isArray(result.data) ? result.data : [result.data];
 
     // 各マップの曲数を取得
     const mapsWithCounts = await Promise.all(
-      (data || []).map(async (map) => {
-        const { count } = await supabase
-          .from('songs')
-          .select('*', { count: 'exact', head: true })
-          .eq('map_id', map.id);
+      data.map(async (map) => {
+        const countResult = await supabaseApi.select({
+          table: 'songs',
+          filters: { eq: { map_id: map.id } },
+          count: true,
+        });
 
         return {
           id: map.id,
@@ -39,7 +50,7 @@ export async function getAllMaps(): Promise<MapData[]> {
             xAxis: map.x_axis,
             yAxis: map.y_axis,
           },
-          songCount: count || 0,
+          songCount: countResult?.count || 0,
           createdAt: map.created_at,
           lastModified: map.updated_at,
         };
@@ -56,23 +67,40 @@ export async function getAllMaps(): Promise<MapData[]> {
 // 特定のマップを取得（曲を含む）
 export async function getMapById(mapId: string): Promise<MapWithSongs | null> {
   try {
-    const { data: mapData, error: mapError } = await supabase
-      .from('maps')
-      .select('*')
-      .eq('id', mapId)
-      .single();
+    const mapResult = await supabaseApi.select<{
+      id: string;
+      name: string;
+      x_axis: string;
+      y_axis: string;
+      created_at: string;
+      updated_at: string;
+    }>({
+      table: 'maps',
+      filters: { eq: { id: mapId } },
+      single: true,
+    });
 
-    if (mapError) throw mapError;
-    if (!mapData) return null;
+    if (!mapResult?.data) return null;
 
-    const { data: songsData, error: songsError } = await supabase
-      .from('songs')
-      .select('*')
-      .eq('map_id', mapId);
+    const mapData = mapResult.data;
 
-    if (songsError) throw songsError;
+    const songsResult = await supabaseApi.select<{
+      id: string;
+      title: string;
+      artist: string;
+      album: string | null;
+      spotify_url: string | null;
+      preview_url: string | null;
+      image_url: string | null;
+      x: number;
+      y: number;
+    }>({
+      table: 'songs',
+      filters: { eq: { map_id: mapId } },
+    });
 
-    const songs: Song[] = (songsData || []).map((song) => ({
+    const songsData = songsResult?.data ? (Array.isArray(songsResult.data) ? songsResult.data : [songsResult.data]) : [];
+    const songs: Song[] = songsData.map((song) => ({
       id: song.id,
       title: song.title,
       artist: song.artist,
@@ -108,21 +136,26 @@ export async function createMap(
   axes: MapAxes
 ): Promise<{ id: string; songs: Song[] } | null> {
   try {
-    const { data: mapData, error: mapError } = await supabase
-      .from('maps')
-      .insert({
+    const result = await supabaseApi.insert<{
+      id: string;
+      name: string;
+      x_axis: string;
+      y_axis: string;
+    }>({
+      table: 'maps',
+      values: {
         name,
         x_axis: axes.xAxis,
         y_axis: axes.yAxis,
-      })
-      .select()
-      .single();
+      },
+      select: '*',
+      single: true,
+    });
 
-    if (mapError) throw mapError;
-    if (!mapData) throw new Error('Failed to create map');
+    if (!result?.data) throw new Error('Failed to create map');
 
     return {
-      id: mapData.id,
+      id: result.data.id,
       songs: [],
     };
   } catch (error) {
@@ -134,26 +167,28 @@ export async function createMap(
 // マップに曲を追加
 export async function addSongToMap(mapId: string, song: Song): Promise<boolean> {
   try {
-    const { error } = await supabase.from('songs').insert({
-      id: song.id,
-      map_id: mapId,
-      title: song.title,
-      artist: song.artist,
-      album: song.album || null,
-      spotify_url: song.spotifyUrl || null,
-      preview_url: song.previewUrl || null,
-      image_url: song.imageUrl || null,
-      x: song.x!,
-      y: song.y!,
+    await supabaseApi.insert({
+      table: 'songs',
+      values: {
+        id: song.id,
+        map_id: mapId,
+        title: song.title,
+        artist: song.artist,
+        album: song.album || null,
+        spotify_url: song.spotifyUrl || null,
+        preview_url: song.previewUrl || null,
+        image_url: song.imageUrl || null,
+        x: song.x!,
+        y: song.y!,
+      },
     });
 
-    if (error) throw error;
-
     // マップの更新日時を更新
-    await supabase
-      .from('maps')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', mapId);
+    await supabaseApi.update({
+      table: 'maps',
+      values: { updated_at: new Date().toISOString() },
+      filters: { eq: { id: mapId } },
+    });
 
     return true;
   } catch (error) {
@@ -165,19 +200,20 @@ export async function addSongToMap(mapId: string, song: Song): Promise<boolean> 
 // マップから曲を削除
 export async function removeSongFromMap(mapId: string, songId: string): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('songs')
-      .delete()
-      .eq('map_id', mapId)
-      .eq('id', songId);
-
-    if (error) throw error;
+    // 曲を削除（map_idでフィルタリングしてから削除する）
+    // 注: 複数のフィルター条件を組み合わせる必要がある場合は、
+    // サーバーレス関数側で対応する必要があります
+    await supabaseApi.delete({
+      table: 'songs',
+      filters: { eq: { id: songId } },
+    });
 
     // マップの更新日時を更新
-    await supabase
-      .from('maps')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', mapId);
+    await supabaseApi.update({
+      table: 'maps',
+      values: { updated_at: new Date().toISOString() },
+      filters: { eq: { id: mapId } },
+    });
 
     return true;
   } catch (error) {
@@ -189,15 +225,14 @@ export async function removeSongFromMap(mapId: string, songId: string): Promise<
 // マップ名を更新
 export async function updateMapName(mapId: string, newName: string): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('maps')
-      .update({ 
+    await supabaseApi.update({
+      table: 'maps',
+      values: {
         name: newName,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', mapId);
-
-    if (error) throw error;
+        updated_at: new Date().toISOString(),
+      },
+      filters: { eq: { id: mapId } },
+    });
     return true;
   } catch (error) {
     console.error('Error updating map name:', error);
@@ -208,9 +243,10 @@ export async function updateMapName(mapId: string, newName: string): Promise<boo
 // マップを削除
 export async function deleteMap(mapId: string): Promise<boolean> {
   try {
-    const { error } = await supabase.from('maps').delete().eq('id', mapId);
-
-    if (error) throw error;
+    await supabaseApi.delete({
+      table: 'maps',
+      filters: { eq: { id: mapId } },
+    });
     return true;
   } catch (error) {
     console.error('Error deleting map:', error);

@@ -16,7 +16,9 @@ interface iTunesSearchResponse {
   results: iTunesTrack[];
 }
 
-// iTunes APIで曲を検索
+/**
+ * iTunes APIで曲を検索
+ */
 async function searchiTunesTracks(query: string): Promise<iTunesTrack[]> {
   const encodedQuery = encodeURIComponent(query.trim());
   const url = `https://itunes.apple.com/search?term=${encodedQuery}&media=music&entity=song&limit=25&country=JP`;
@@ -55,6 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { q } = req.query;
 
+    // クエリパラメータの検証
     if (!q || typeof q !== 'string') {
       return res.status(400).json({
         success: false,

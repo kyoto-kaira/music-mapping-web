@@ -1,9 +1,27 @@
 /// <reference types="vite/client" />
 
+/**
+ * 環境変数の型定義
+ * 
+ * VITE_プレフィックス付きの環境変数はフロントエンド（クライアント側）で使用されます
+ * これらの値はビルド時にバンドルに埋め込まれるため、開発者ツールで確認可能です
+ * 
+ * VITE_プレフィックスがない環境変数はサーバーサイドでのみ使用され、
+ * クライアント側には露出しません
+ * 
+ * 注意: 現在、すべてのAPIキーとシークレットはサーバーサイドで管理されているため、
+ * フロントエンドで使用する環境変数はありません
+ */
 interface ImportMetaEnv {
-  readonly VITE_SUPABASE_URL: string;
-  readonly VITE_SUPABASE_ANON_KEY: string;
-  readonly DEV: boolean;
+  // フロントエンドで使用（VITE_プレフィックス必須）
+  // 現在、フロントエンドで直接使用する環境変数はありません
+  
+  // サーバーサイドで使用（VITE_プレフィックス不要）
+  // 以下の環境変数はクライアント側では使用されません:
+  // - API_GATEWAY_URL (サーバーレス関数で使用)
+  // - API_GATEWAY_KEY (サーバーレス関数で使用)
+  // - SUPABASE_URL (サーバーレス関数で使用)
+  // - SUPABASE_ANON_KEY (サーバーレス関数で使用)
 }
 
 interface ImportMeta {

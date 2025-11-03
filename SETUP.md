@@ -6,7 +6,7 @@
 
 1. [前提条件の確認](#前提条件の確認)
 2. [Supabaseのセットアップ](#supabaseのセットアップ)
-3. [OpenAI APIのセットアップ](#openai-apiのセットアップ)
+3. [AWS SageMaker/API Gatewayのセットアップ](#aws-sagemakerapi-gatewayのセットアップ)
 4. [ローカル開発環境のセットアップ](#ローカル開発環境のセットアップ)
 5. [Vercelへのデプロイ](#vercelへのデプロイ)
 6. [トラブルシューティング](#トラブルシューティング)
@@ -20,6 +20,7 @@
 - **Node.js** (v18以上)
 - **npm** または **yarn**
 - **Git**
+- **AWSアカウント**（SageMakerエンドポイントとAPI Gatewayがデプロイ済みであること、または`terraform/`ディレクトリからデプロイ可能であること）
 
 バージョン確認:
 ```bash
@@ -61,22 +62,42 @@ git --version
 
 ---
 
-## 3. OpenAI APIのセットアップ
+## 3. AWS SageMaker/API Gatewayのセットアップ
 
-#### ステップ1: APIキー作成
+#### ステップ1: Terraformを使用したインフラのデプロイ
 
-1. [OpenAI Platform](https://platform.openai.com/) にアクセス
-2. アカウントにログインまたは作成
-3. 左メニューから「API keys」を選択
-4. 「Create new secret key」をクリック
-5. キー名を入力（例: music-mapping）
-6. 生成されたキーをメモ（**一度しか表示されません！**）
+1. `terraform/` ディレクトリに移動
+2. Terraform設定ファイルを確認
+3. `terraform.tfvars` に必要な変数を設定
+4. 以下を実行:
 
-#### ステップ2: 課金設定（必要に応じて）
+```bash
+cd terraform
+terraform init
+terraform plan
+terraform apply
+```
 
-1. 「Settings」→「Billing」に移動
-2. 支払い方法を追加
-3. 使用量制限を設定（推奨: $10/月）
+#### ステップ2: API Gatewayの情報を取得
+
+Terraformのoutputから必要な情報を取得:
+
+```bash
+# API Gateway URL
+terraform output -raw api_gateway_url
+
+# API Gateway キー
+terraform output -raw api_key_value
+```
+
+これらの値をメモしておきます（環境変数の設定で使用します）。
+
+#### ステップ3: SageMakerエンドポイントの確認
+
+1. AWSコンソールでSageMakerエンドポイントが起動していることを確認
+2. エンドポイントが正常にデプロイされていることを確認
+
+**注意**: SageMakerエンドポイントのデプロイには時間がかかる場合があります。エンドポイントが準備できるまで待つ必要があります。
 
 ---
 
@@ -107,9 +128,20 @@ cp env.template .env.local
 `.env.local` を編集:
 
 ```env
-# Supabase（ステップ2.1で取得）
-VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGci...
+# サーバーサイド環境変数 (VITE_プレフィックス不要)
+# すべての環境変数はサーバーレス関数でのみ使用され、クライアント側には露出しません
+
+# API Gateway設定
+# Terraformのoutputから取得してください:
+#   terraform output -raw api_gateway_url
+#   terraform output -raw api_key_value
+API_GATEWAY_URL=https://your-api-gateway-url.execute-api.ap-northeast-1.amazonaws.com/prod/inference
+API_GATEWAY_KEY=your-api-gateway-key
+
+# Supabase設定
+# Supabaseダッシュボードから取得してください
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_ANON_KEY=eyJhbGci...
 ```
 
 ### ステップ4: 開発サーバーの起動
@@ -160,11 +192,19 @@ Vercelダッシュボードで:
 2. 「Settings」→「Environment Variables」
 3. 以下を追加:
 
+#### サーバーサイド環境変数 (VITE_プレフィックス不要)
+すべての環境変数はサーバーレス関数でのみ使用され、クライアント側には露出しません。
+
 | Name | Value | Environment |
 |------|-------|-------------|
-| `VITE_SUPABASE_URL` | `https://xxxxx.supabase.co` | Production, Preview, Development |
-| `VITE_SUPABASE_ANON_KEY` | `eyJhbGci...` | Production, Preview, Development |
-| `OPENAI_API_KEY` | OpenAIで取得 | Production, Preview, Development |
+| `API_GATEWAY_URL` | `https://xxx.execute-api...` | Production, Preview, Development |
+| `API_GATEWAY_KEY` | `xxxxx` | Production, Preview, Development |
+| `SUPABASE_URL` | `https://xxxxx.supabase.co` | Production, Preview, Development |
+| `SUPABASE_ANON_KEY` | `eyJhbGci...` | Production, Preview, Development |
+
+**重要**: 
+- すべての環境変数はサーバーレス関数でのみ使用されます
+- クライアント側には露出しないため、`VITE_`プレフィックスは付けません
 
 ### ステップ4: 再デプロイ
 
@@ -193,12 +233,13 @@ vercel --prod
 
 ### 問題: Supabaseに接続できない
 
-**エラー**: `Invalid Supabase URL` または `No API key`
+**エラー**: `Supabase configuration is missing` または `Supabase proxy error`
 
 **解決策**:
 1. `.env.local` のURLとキーが正しいか確認
-2. 環境変数名が `VITE_` で始まっているか確認
+2. 環境変数名が `SUPABASE_URL` と `SUPABASE_ANON_KEY` であることを確認（`VITE_`プレフィックス不要）
 3. 開発サーバーを再起動 (`npm run dev`)
+4. Vercelの場合、環境変数が正しく設定されているか確認
 
 ### 問題: 曲検索が動作しない
 
@@ -215,14 +256,23 @@ vercel --prod
 vercel logs
 ```
 
-### 問題: OpenAI APIエラー
+### 問題: API Gatewayエラー
 
-**エラー**: `Rate limit exceeded` または `Insufficient quota`
+**エラー**: `API Gateway configuration is missing` または `API Gateway request failed`
 
 **解決策**:
-1. OpenAIの使用量を確認
-2. 課金設定を確認
-3. APIキーが有効か確認
+1. `.env.local` の `API_GATEWAY_URL` と `API_GATEWAY_KEY` が正しく設定されているか確認
+2. Terraformのoutputから値を再取得して確認
+3. API Gatewayが正常にデプロイされているかAWSコンソールで確認
+4. SageMakerエンドポイントが起動しているか確認
+5. APIキーが有効か確認
+
+コマンド:
+```bash
+# Terraformのoutputを確認
+cd terraform
+terraform output
+```
 
 ### 問題: データベースエラー
 
@@ -280,4 +330,3 @@ vercel logs [deployment-url]
 - [ ] 友達とシェアする
 
 質問や問題がある場合は、GitHubのIssueを作成してください。
-

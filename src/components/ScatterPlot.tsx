@@ -63,57 +63,39 @@ export function ScatterPlot({
     const data = songs.filter(song => song.x !== undefined && song.y !== undefined);
     if (data.length === 0) return;
 
-    // Set up scales with 1:1 aspect ratio
+    // Set up scales while preserving previous viewport center/width when possible.
     const xExtent = d3.extent(data, d => d.x!) as [number, number];
     const yExtent = d3.extent(data, d => d.y!) as [number, number];
-    
-    // Calculate data range
     const xRange = xExtent[1] - xExtent[0];
     const yRange = yExtent[1] - yExtent[0];
-    
-    // Determine the larger range to maintain 1:1 aspect ratio
-    const maxRange = Math.max(xRange, yRange);
-    
-    // Calculate center points
-    const xCenter = (xExtent[0] + xExtent[1]) / 2;
-    const yCenter = (yExtent[0] + yExtent[1]) / 2;
-    
-    // Add padding
-    const padding = maxRange * (CONSTANTS.MAP_PADDING || 0.1);
-    
-    // Create square domains centered on data
-    const xDomainSize = maxRange + padding;
-    const yDomainSize = maxRange + padding;
-    
-    const baseXDomain: [number, number] = [xCenter - xDomainSize / 2, xCenter + xDomainSize / 2];
-    const baseYDomain: [number, number] = [yCenter - yDomainSize / 2, yCenter + yDomainSize / 2];
-    
-    // ベースドメインを保存
+    const padRatio = (CONSTANTS.MAP_PADDING ?? 0.1);
+
+    const baseXDomain: [number, number] = [xExtent[0] - xRange * padRatio, xExtent[1] + xRange * padRatio];
+    const baseYDomain: [number, number] = [yExtent[0] - yRange * padRatio, yExtent[1] + yRange * padRatio];
+
+    // 保存しておく（リサイズ時に参照）
+    const prevXDomain = zoomStateRef.current.xDomain;
+    const prevYDomain = zoomStateRef.current.yDomain;
+    const prevBaseX = zoomStateRef.current.baseXDomain;
+    const prevBaseY = zoomStateRef.current.baseYDomain;
+
+    const initialXDomain: [number, number] = prevXDomain
+      ? prevXDomain
+      : (prevBaseX ? prevBaseX : baseXDomain);
+    const initialYDomain: [number, number] = prevYDomain
+      ? prevYDomain
+      : (prevBaseY ? prevBaseY : baseYDomain);
+
     zoomStateRef.current.baseXDomain = baseXDomain;
     zoomStateRef.current.baseYDomain = baseYDomain;
-    
-    // ズーム状態を保持している場合はそれを使用、そうでなければデフォルト範囲を使用
-    const initialXDomain = zoomStateRef.current.isZoomed && zoomStateRef.current.xDomain 
-      ? zoomStateRef.current.xDomain 
-      : baseXDomain;
-    
-    const initialYDomain = zoomStateRef.current.isZoomed && zoomStateRef.current.yDomain 
-      ? zoomStateRef.current.yDomain 
-      : baseYDomain;
-    
-    // Calculate current scale based on domain size
-    const currentDomainSize = initialXDomain[1] - initialXDomain[0];
-    const currentScale = maxRange / currentDomainSize;
-    setCurrentScale(currentScale);
-    
-    const xScale = d3.scaleLinear()
-      .domain(initialXDomain)
-      .range([0, width]);
-    
-    const yScale = d3.scaleLinear()
-      .domain(initialYDomain)
-      .range([height, 0]);
 
+    const xScale = d3.scaleLinear().domain(initialXDomain).range([0, width]);
+    const yScale = d3.scaleLinear().domain(initialYDomain).range([height, 0]);
+
+    // currentScale は参考値として更新
+    const domainWidth = initialXDomain[1] - initialXDomain[0] || 1;
+    setCurrentScale((xRange || 1) / domainWidth);
+    
     // Create main group
     const g = svg
       .attr('width', rect.width)
@@ -349,9 +331,6 @@ export function ScatterPlot({
       };
       
       setZoomLevel(zoomStateRef.current.scale);
-      
-      // Update visualization
-      updateVisualization();
     };
 
     // Pan functionality
@@ -397,7 +376,7 @@ export function ScatterPlot({
           scale: zoomStateRef.current.scale
         };
         
-        updateVisualization();
+        setZoomLevel(zoomStateRef.current.scale);
       }
     };
 
@@ -470,9 +449,7 @@ export function ScatterPlot({
       };
       
       setZoomLevel(zoomStateRef.current.scale);
-
-      // Update visualization with animation
-      updateVisualization();
+      // trigger re-render via zoomLevel change; no direct call to updateVisualization()
     };
 
     brush = d3.brush()
@@ -591,7 +568,7 @@ export function ScatterPlot({
       .attr('fill', d => (selectedSong && d.id === selectedSong.id) ? '#4c1d95' : '#6b7280')
       .style('font-weight', d => (selectedSong && d.id === selectedSong.id) ? '700' : '500')
       .style('opacity', d => (newlyAddedSongId && d.id === newlyAddedSongId) ? 1 : 0.95);
-+
+
     // Add hover effects
     circles
       .on('mouseenter', function(event, d) {
@@ -735,16 +712,15 @@ export function ScatterPlot({
       event.preventDefault();
     });
 
-  }, [songs, mapAxes, hasCoordinates, selectedSong, onSongSelect, newlyAddedSongId, forceUpdateCounter]);
+  }, [songs, mapAxes, hasCoordinates, selectedSong, onSongSelect, newlyAddedSongId, forceUpdateCounter, zoomLevel]);
 
   // Handle resize
   useEffect(() => {
     if (!containerRef.current) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      // Trigger re-render on resize
-      const event = new Event('resize');
-      window.dispatchEvent(event);
+      // forceUpdateCounter を直接更新してメインの useEffect を再実行させる
+      setForceUpdateCounter(prev => prev + 1);
     });
 
     resizeObserver.observe(containerRef.current);

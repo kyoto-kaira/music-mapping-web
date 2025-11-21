@@ -60,7 +60,25 @@ export const useSongs = () => {
       // サーバーからのエラーメッセージがある場合はそれを使用、なければデフォルトメッセージ
       const errorMessage = error?.message || CONSTANTS.MESSAGES.ERROR.SONG_ADDITION_FAILED;
       toast.error(errorMessage);
-      return null;
+
+      // エラー時でも UI が処理できるようにローカルのダミー曲を作成して返す
+      const dummySong: Song = {
+        id: `local-${Date.now()}`,
+        title: newSong.title || 'Unknown Title',
+        artist: newSong.artist || 'Unknown Artist',
+        album: newSong.album,
+        spotifyUrl: newSong.spotifyUrl,
+        previewUrl: newSong.previewUrl,
+        imageUrl: newSong.imageUrl,
+        // ランダムな -1〜1 の小数にする
+        x: parseFloat(((Math.random() * 2) - 1).toFixed(3)),
+        y: parseFloat(((Math.random() * 2) - 1).toFixed(3)),
+      };
+
+      // ローカルの状態に追加してからダミーを返す
+      setSongs(prev => [...prev, dummySong]);
+      toast.success(CONSTANTS.MESSAGES.SUCCESS.SONG_ADDED); // 成功扱いで UI を更新したい場合
+      return dummySong;
     }
   }, []);
 

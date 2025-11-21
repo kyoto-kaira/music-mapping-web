@@ -2959,6 +2959,25 @@ body {
   border-radius: 12px;
 }
 
+@media (max-aspect-ratio: 13/10) {
+  .search-bar {
+    width:60vw;
+    height: 5vh;
+  }
+  .search-input {
+    font-size:2.5vw;
+  }
+  .search-btn {
+    font-size:2.5vw;
+    height: 4vh;
+    padding: calc(1.5vw) calc(3vw);
+  }
+  .sidebar-open {
+    width: 60vw;
+  }
+}
+
+
 .warning-icon {
   width: 18px;
   height: 18px;

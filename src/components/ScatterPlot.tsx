@@ -565,6 +565,33 @@ export function ScatterPlot({
       .style('opacity', 0.9)
       .style('transition', 'all 0.3s ease');
 
+    // --- 曲名ラベル: 点と同じデータキーで join して位置を更新する ---
+    const labelOffset = 18;
+    const labels = g.selectAll('.point-label')
+      .data(data, (d: any) => d.id)
+      .join(
+        enter => enter.append('text')
+          .attr('class', 'point-label')
+          .attr('x', d => xScale(d.x!))
+          .attr('y', d => yScale(d.y!) + labelOffset)
+          .attr('text-anchor', 'middle')
+          .style('font-size', '12px')
+          .style('pointer-events', 'none')
+          .style('opacity', 0)
+          .text(d => d.title || '')
+          .call(enter => enter.transition().duration(300).style('opacity', 0.95)),
+        update => update,
+        exit => exit.transition().duration(300).style('opacity', 0).remove()
+      );
+
+    // Apply dynamic attrs to labels
+    labels
+      .attr('x', d => xScale(d.x!))
+      .attr('y', d => yScale(d.y!) + labelOffset)
+      .attr('fill', d => (selectedSong && d.id === selectedSong.id) ? '#4c1d95' : '#6b7280')
+      .style('font-weight', d => (selectedSong && d.id === selectedSong.id) ? '700' : '500')
+      .style('opacity', d => (newlyAddedSongId && d.id === newlyAddedSongId) ? 1 : 0.95);
++
     // Add hover effects
     circles
       .on('mouseenter', function(event, d) {
@@ -578,6 +605,14 @@ export function ScatterPlot({
             .style('filter', 'url(#glow)');
         }
       })
+      .on('mouseover', function(event, d) {
+        // ラベル強調（任意）
+        g.selectAll('.point-label')
+          .filter((ld: any) => ld.id === d.id)
+          .transition()
+          .duration(120)
+          .style('font-weight', '700');
+      })
       .on('mouseleave', function(event, d) {
         if (selectedSong?.id !== d.id && newlyAddedSongId !== d.id) {
           d3.select(this)
@@ -588,8 +623,15 @@ export function ScatterPlot({
             .style('opacity', 0.9)
             .style('filter', 'url(#subtleGlow)');
         }
+        // ラベルの強調解除
+        g.selectAll('.point-label')
+          .filter((ld: any) => ld.id === d.id)
+          .transition()
+          .duration(120)
+          .style('font-weight', (ld: any) => (selectedSong && ld.id === selectedSong.id) ? '700' : '500');
       });
-
+    
+    // クリックハンドラは既存の circles.on('click', ...) で動くのでラベルは pointer-events:none にしています。
     // Add click handlers to points
     circles.on('click', function(event, d) {
       event.stopPropagation();
@@ -649,6 +691,12 @@ export function ScatterPlot({
       circles.transition(t)
         .attr('cx', d => xScale(d.x!))
         .attr('cy', d => yScale(d.y!));
+
+      // Update labels — 位置と色をトランジションで同期
+      g.selectAll('.point-label').transition(t)
+        .attr('x', (d: any) => xScale(d.x!))
+        .attr('y', (d: any) => yScale(d.y!) + labelOffset)
+        .attr('fill', (d: any) => (selectedSong && d.id === selectedSong.id) ? '#4c1d95' : '#6b7280');
 
       // Ensure consistent beautiful styling throughout and after transition
       svg.selectAll('.domain').style('stroke', 'none');
